@@ -116,37 +116,74 @@
 		lang.wsWinStyles.forEach(xi => xi.juJustifCode = xi.juJustifCode === undefined? undefined : 2);
 		lang.events.forEach(xi => xi.wWinId = undefined);
 		// lang.wpWinPositions = [ {} ]
-		// lang.pens = [ {} ]
+		if (!lang.pens)
+			lang.pens = [ {}, {} ];
+		else if (lang.pens.length < 2)
+			lang.pens.push({})
+		lang.pens[1]["szPenSize"] = 60;
+		// lang.pens[1]["iAttr"] = 1;
+	}
+
+	// It uses the first event as a placeholder or to save
+	// some information. It's annoying
+	function weirdFirstEvent(event) {
+		if (event.tStartMs !== 0)
+			return false;
+
+		// Los manuales generalmente tienen esto
+		if (event.segs && event.segs.length === 1 && event.segs[0].utf8.trim() === '.')
+			return true;
+
+		// Los automaticos generalmente tienen esto
+		if (event.id)
+			return true;
+
+		return false
 	}
 
 	// The primaryLang is modified
+	// TODO I think this doesn't work on a secondary video coming on segments/events like the first one
+	// BUG doesn't work if you combine manually and auto generated because they have different timestamp
+	// can be done but would be really annoying changing at different times, unuseable
 	function combineSubs(primaryLang, secondaryLang) {
 		let primaryEv = primaryLang.events;
 		let secondaryEv = secondaryLang.events;
 
-		for (let i = 0, j = 0; i < primaryEv.length && j < secondaryEv.length; i++, j++) {
-			while (primaryEv[i].segs == undefined)
-				i++;
-			while (secondaryEv[j].segs == undefined)
-				j++;
-			if (primaryEv[i].tStartMs === secondaryEv[j].tStartMs) {
-				let i_f = 1;
-				if (j === secondaryEv.length - 1) {
-					i_f = primaryEv.length - i;
-				} else {
-					while (i + i_f < primaryEv.length && primaryEv[i + i_f].tStartMs < secondaryEv[j + 1].tStartMs) {
-						i_f++;
-					}
+		// console.log(JSON.stringify(primaryLang));
+		// console.log(JSON.stringify(secondaryLang));
+
+		// the event on 0 has weird info
+		let i = weirdFirstEvent(primaryEv[0]) ? 1 : 0;
+		let j = weirdFirstEvent(secondaryEv[0]) ? 1 : 0;
+		for (; i < primaryEv.length && j < secondaryEv.length; i++, j++) {
+			if (primaryEv[i].tStartMs !== secondaryEv[j].tStartMs)
+				continue;
+
+			// amount of events to combine
+			let i_f = 1;
+			if (j === secondaryEv.length - 1) {
+				i_f = primaryEv.length - i;
+			} else {
+				while (i + i_f < primaryEv.length && primaryEv[i + i_f].tStartMs < secondaryEv[j + 1].tStartMs) {
+					i_f++;
 				}
-				primaryEv[i].segs[0].utf8 = primaryEv.slice(i, i + i_f).flatMap(event => event.segs.map(x => x.utf8).join(''))[0];
-				primaryEv[i].segs.splice(1);
-				primaryEv.splice(i+1, i_f-1);
 			}
-			primaryEv[i].segs[0].utf8 += '\n' + secondaryEv[j].segs.map(x => x.utf8).join('');
-			if (i < primaryEv.length - 1 && primaryEv[i].tStartMs + primaryEv[i].dDurationMs > primaryEv[i + 1].tStartMs)
-				primaryEv[i].dDurationMs = primaryEv[i + 1].tStartMs - primaryEv[i].tStartMs;
+
+			// new duration
+			// primaryEv[i].dDurationMs = primaryEv[i_f].tStartMs + primaryEv[i_f].dDurationMs - primaryEv[i].tStartMs;
+
+			// removes eventos on the primary
+			primaryEv[i].segs[0].utf8 = primaryEv.slice(i, i + i_f).flatMap(event => event.segs.map(x => x.utf8).join('')).join('').replace('\n', ' ').trim();
+			primaryEv[i].segs.splice(1);
+			primaryEv.splice(i+1, i_f-1);
+
+			// add the second lang
+			secondaryEv[j].segs[0].utf8 = secondaryEv[j].segs.map(x => x.utf8).join('').replace('\n', ' ').trim();
+			secondaryEv[j].segs[0]["pPenId"] = 1;
+			primaryEv[i].segs[0].utf8 += '\n';
+			primaryEv[i].segs.splice(1, 0, secondaryEv[j].segs[0]);
 		}
-		primaryLang.events = primaryEv.filter(xi => xi.segs === undefined || !/^\n*$/.test(xi.segs[0].utf8));
+		// console.log(JSON.stringify(primaryLang));
 	}
 
 	// from stackoverflow.com/a/51594799
