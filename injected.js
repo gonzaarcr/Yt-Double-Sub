@@ -18,7 +18,7 @@
 		return JSON.parse(n);
 	})(document.scripts);*/
 
-	let captionsInfo = JSON.parse(ytplayer.config.args.player_response).captions.playerCaptionsTracklistRenderer;
+	let captionsInfo = ytplayer.config.args.raw_player_response.captions.playerCaptionsTracklistRenderer;
 	let cTracks = captionsInfo.captionTracks;
 	let tlangs = captionsInfo.translationLanguages;
 
